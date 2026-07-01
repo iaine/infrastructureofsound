@@ -1,0 +1,14 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #fafafa;
+}
+
+canvas {
+  border: 1px solid #ccc;
+  margin-top: 10px;
+}
+
+.controls {
+  margin-bottom: 10px;
+}
+``
