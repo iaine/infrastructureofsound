@@ -1,0 +1,42 @@
+flow:
+  id: example_flow
+
+  source:
+    type: file
+    format: wav
+    uri: file://input.wav
+
+  signal:
+    sample_rate: 44100
+    bitrate: 16bit
+    channels: 2
+    encoding: PCM
+
+  nodes:
+    - id: encoder
+      type: codec
+      function: encode
+      implementation: libmp3.so
+
+    - id: classifier
+      type: model
+      function: classify
+      implementation: libclassifier.so
+      link:
+        target: https://model-info.org
+
+  transformations:
+    - from: wav
+      to: mp3
+      changes:
+        bitrate: "1411kbps -> 128kbps"
+
+    - from: audio
+      to: features
+
+    - from: features
+      to: label
+
+  output:
+    type: audio
+    mode: sonified
