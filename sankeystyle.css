@@ -59,3 +59,19 @@ h1 {
   display:inline-block;
   margin-right:5px;
 }
+
+#dropZone {
+    border: 3px dashed #888;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    margin-bottom: 20px;
+    background: #fafafa;
+    cursor: pointer;
+    transition: .2s;
+}
+
+#dropZone.dragover {
+    border-color: #4A90E2;
+    background: #eef6ff;
+}
