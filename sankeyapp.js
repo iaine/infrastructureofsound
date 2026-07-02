@@ -1,3 +1,101 @@
+let audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+document.body.addEventListener(
+  "click",
+  () => initAudio(),
+  { once: true }
+);
+
+const stageFrequency = {
+  capture: 220,
+  dsp: 330,
+  features: 440,
+  inference: 550,
+  output: 660
+};
+
+function playNodeSound(nodeData) {
+
+  if (!audioCtx) return;
+
+  const now = audioCtx.currentTime;
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  let currentNode = osc;
+
+  osc.type = "sawtooth";
+
+  osc.frequency.value =
+      stageFrequency[nodeData.stage] || 440;
+
+  //
+  // DSP mappings
+  //
+
+  if (nodeData.operations.includes("aec")) {
+
+    const delay = audioCtx.createDelay();
+    delay.delayTime.value = 0.12;
+
+    currentNode.connect(delay);
+    currentNode = delay;
+  }
+
+  if (nodeData.operations.includes("agc")) {
+
+    const comp =
+      audioCtx.createDynamicsCompressor();
+
+    comp.threshold.value = -30;
+    comp.ratio.value = 10;
+
+    currentNode.connect(comp);
+    currentNode = comp;
+  }
+
+  if (
+    nodeData.operations.includes("ns_") ||
+    nodeData.operations.includes("denoise")
+  ) {
+
+    const filter =
+      audioCtx.createBiquadFilter();
+
+    filter.type = "lowpass";
+    filter.frequency.value = 1200;
+
+    currentNode.connect(filter);
+    currentNode = filter;
+  }
+
+  currentNode.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(
+    0.25,
+    now + 0.03
+  );
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.001,
+    now + 0.4
+  );
+
+  osc.start(now);
+  osc.stop(now + 0.45);
+}
+
+
+
 const width = 1600;
 const height = 900;
 
@@ -170,7 +268,41 @@ const node = svg.append("g")
   .selectAll("g")
   .data(graph.nodes)
   .join("g")
-  .attr("class","node");
+  .attr("class", "node")
+  .style("cursor", "pointer")
+  .on("click", (event, d) => {
+
+      playNodeSound(d);
+
+      d3.select(event.currentTarget)
+        .select("rect")
+        .transition()
+        .duration(100)
+        .attr("stroke-width", 5)
+        .transition()
+        .duration(300)
+        .attr("stroke-width", 1);
+
+  });
+
+node.on("mouseover", (event, d) => {
+
+    svg.selectAll(".link")
+      .attr("opacity", l =>
+        l.source === d || l.target === d
+          ? 1
+          : 0.1
+      );
+})
+.on("mouseout", () => {
+
+    svg.selectAll(".link")
+      .attr("opacity", 0.55);
+}).on("click",(event,d)=>{
+
+    playOperation(d.operation);
+
+})
 
 node.append("rect")
   .attr("x", d => d.x0)
@@ -220,4 +352,348 @@ legendData.forEach(d=>{
   item.append("span")
     .text(d[0]);
 });
-``
+
+//sonification engine
+
+function playNodeSound(nodeData) {
+
+    if (!audioCtx) return;
+
+    const now = audioCtx.currentTime;
+
+    const masterGain = audioCtx.createGain();
+    masterGain.connect(audioCtx.destination);
+
+    masterGain.gain.setValueAtTime(0.15, now);
+
+    const operations = nodeData.operations || [];
+
+    operations.forEach((op, index) => {
+
+        const startTime = now + (index * 0.08);
+
+        switch(op) {
+
+            case "audiorecord":
+                playAudioRecord(startTime, masterGain);
+                break;
+
+            case "aaudio":
+                playAAudio(startTime, masterGain);
+                break;
+
+            case "opensl":
+                playOpenSL(startTime, masterGain);
+                break;
+
+            case "aec":
+                playAEC(startTime, masterGain);
+                break;
+
+            case "agc":
+                playAGC(startTime, masterGain);
+                break;
+
+            case "ns_":
+            case "noise_suppress":
+                playNoiseSuppress(startTime, masterGain);
+                break;
+
+            case "fft":
+                playFFT(startTime, masterGain);
+                break;
+
+            case "mel":
+                playMel(startTime, masterGain);
+                break;
+
+            case "mfcc":
+                playMFCC(startTime, masterGain);
+                break;
+
+            case "chroma":
+                playChroma(startTime, masterGain);
+                break;
+
+            case "asr":
+                playASR(startTime, masterGain);
+                break;
+
+            case "embedding":
+                playEmbedding(startTime, masterGain);
+                break;
+
+            case "recognize":
+                playRecognize(startTime, masterGain);
+                break;
+
+            case "upload":
+                playUpload(startTime, masterGain);
+                break;
+
+            case "api":
+                playAPI(startTime, masterGain);
+                break;
+
+            default:
+                playDefault(startTime, masterGain);
+        }
+
+    });
+}
+
+function playAudioRecord(t, output){
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "triangle";
+    osc.frequency.value = 220;
+
+    gain.gain.setValueAtTime(0.001,t);
+    gain.gain.linearRampToValueAtTime(0.3,t+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+
+    osc.connect(gain);
+    gain.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.2);
+}
+
+function playAAudio(t, output){
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.value = 440;
+
+    gain.gain.value = 0.2;
+
+    osc.connect(gain);
+    gain.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.15);
+}
+function playOpenSL(t, output){
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "square";
+    osc.frequency.value = 330;
+
+    gain.gain.value = 0.1;
+
+    osc.connect(gain);
+    gain.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.12);
+}
+
+function playAEC(t, output){
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const delay = audioCtx.createDelay();
+
+    delay.delayTime.value = 0.15;
+
+    osc.frequency.value = 400;
+
+    osc.connect(gain);
+    gain.connect(output);
+
+    gain.connect(delay);
+    delay.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.3);
+}
+
+function playAGC(t, output){
+
+    const osc = audioCtx.createOscillator();
+    const comp = audioCtx.createDynamicsCompressor();
+
+    osc.type = "sawtooth";
+    osc.frequency.value = 550;
+
+    osc.connect(comp);
+    comp.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.2);
+}
+
+function playNoiseSuppress(t, output){
+
+    const buffer =
+      audioCtx.createBuffer(1, 8000, audioCtx.sampleRate);
+
+    const data = buffer.getChannelData(0);
+
+    for(let i=0;i<data.length;i++){
+        data[i]=(Math.random()*2)-1;
+    }
+
+    const src = audioCtx.createBufferSource();
+    const filter = audioCtx.createBiquadFilter();
+
+    filter.type = "lowpass";
+    filter.frequency.value = 900;
+
+    src.buffer = buffer;
+
+    src.connect(filter);
+    filter.connect(output);
+
+    src.start(t);
+}
+
+function playFFT(t, output){
+
+    const osc = audioCtx.createOscillator();
+
+    osc.type = "sawtooth";
+    osc.frequency.value = 880;
+
+    osc.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.15);
+}
+
+function playMel(t, output){
+
+    const osc = audioCtx.createOscillator();
+    const bp = audioCtx.createBiquadFilter();
+
+    bp.type = "bandpass";
+    bp.frequency.value = 1000;
+
+    osc.frequency.value = 500;
+
+    osc.connect(bp);
+    bp.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.2);
+}
+
+function playMFCC(t, output){
+
+    const carrier = audioCtx.createOscillator();
+    const mod = audioCtx.createOscillator();
+
+    const modGain = audioCtx.createGain();
+
+    mod.frequency.value = 120;
+    modGain.gain.value = 150;
+
+    carrier.frequency.value = 440;
+
+    mod.connect(modGain);
+    modGain.connect(carrier.frequency);
+
+    carrier.connect(output);
+
+    mod.start(t);
+    carrier.start(t);
+
+    mod.stop(t+0.25);
+    carrier.stop(t+0.25);
+}
+
+function playChroma(t, output){
+
+    [261,329,392].forEach(freq=>{
+
+        const osc = audioCtx.createOscillator();
+
+        osc.frequency.value = freq;
+        osc.connect(output);
+
+        osc.start(t);
+        osc.stop(t+0.25);
+    });
+}
+
+function playASR(t, output){
+
+    const osc = audioCtx.createOscillator();
+
+    osc.frequency.setValueAtTime(300,t);
+    osc.frequency.exponentialRampToValueAtTime(750,t+0.2);
+
+    osc.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.25);
+}
+
+function playEmbedding(t, output){
+
+    [440,660].forEach(freq => {
+
+        const osc = audioCtx.createOscillator();
+
+        osc.frequency.value = freq;
+
+        osc.connect(output);
+
+        osc.start(t);
+        osc.stop(t+0.2);
+    });
+}
+
+function playRecognize(t, output){
+
+    const osc = audioCtx.createOscillator();
+
+    osc.frequency.setValueAtTime(700,t);
+    osc.frequency.setValueAtTime(1000,t+0.08);
+
+    osc.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.15);
+}
+
+function playUpload(t, output){
+
+    const osc = audioCtx.createOscillator();
+
+    osc.frequency.setValueAtTime(300,t);
+    osc.frequency.linearRampToValueAtTime(900,t+0.25);
+
+    osc.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.25);
+}
+
+function playAPI(t, output){
+
+    const osc = audioCtx.createOscillator();
+
+    osc.type = "square";
+    osc.frequency.value = 1400;
+
+    osc.connect(output);
+
+    osc.start(t);
+    osc.stop(t+0.05);
+}
+
+function playOperation(op){
+
+    playNodeSound({
+        operations:[op]
+    });
+
+}
+
