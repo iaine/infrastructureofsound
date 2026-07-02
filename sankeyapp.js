@@ -94,6 +94,163 @@ function playNodeSound(nodeData) {
   osc.stop(now + 0.45);
 }
 
+//drag n drop
+
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+
+dropZone.addEventListener("click", () => {
+    fileInput.click();
+});
+
+fileInput.addEventListener("change", e => {
+
+    const file = e.target.files[0];
+
+    if (file) {
+        loadFlowFile(file);
+    }
+});
+
+dropZone.addEventListener("dragover", e => {
+
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+
+});
+
+dropZone.addEventListener("dragleave", () => {
+
+    dropZone.classList.remove("dragover");
+
+});
+
+dropZone.addEventListener("drop", e => {
+
+    e.preventDefault();
+
+    dropZone.classList.remove("dragover");
+
+    const file = e.dataTransfer.files[0];
+
+    if (file) {
+        loadFlowFile(file);
+    }
+});
+
+async function loadFlowFile(file) {
+
+    const text = await file.text();
+
+    const json = JSON.parse(text);
+
+    const sankeyData = convertChainsToSankey(json);
+
+    renderSankey(sankeyData);
+}
+
+function convertChainsToSankey(data) {
+
+    const nodes = [];
+    const links = [];
+
+    const nodeMap = new Map();
+
+    const stages = [
+        "capture",
+        "dsp",
+        "features",
+        "inference",
+        "output"
+    ];
+
+    function getNode(name, stage, ops = []) {
+
+        const id = `${stage}:${name}`;
+
+        if (!nodeMap.has(id)) {
+
+            nodeMap.set(id, {
+                id,
+                name,
+                stage,
+                operations: ops
+            });
+
+            nodes.push(nodeMap.get(id));
+        }
+
+        return nodeMap.get(id);
+    }
+
+    stages.forEach((stage, index) => {
+
+        const mods = data.chains?.[stage] || [];
+
+        mods.forEach(mod => {
+
+            getNode(
+                mod.module || mod.name,
+                stage,
+                mod.operations || []
+            );
+        });
+
+    });
+
+    for (let i = 0; i < stages.length - 1; i++) {
+
+        const current = data.chains?.[stages[i]] || [];
+        const next = data.chains?.[stages[i + 1]] || [];
+
+        current.forEach(sourceModule => {
+
+            next.forEach(targetModule => {
+
+                const sourceName =
+                    sourceModule.module || sourceModule.name;
+
+                const targetName =
+                    targetModule.module || targetModule.name;
+
+                const sourceNode =
+                    getNode(
+                        sourceName,
+                        stages[i],
+                        sourceModule.operations
+                    );
+
+                const targetNode =
+                    getNode(
+                        targetName,
+                        stages[i+1],
+                        targetModule.operations
+                    );
+
+                const op =
+                    (sourceModule.operations || [])[0]
+                    || "generic";
+
+                links.push({
+                    source: sourceNode.id,
+                    target: targetNode.id,
+                    value: 1,
+                    operation: op
+                });
+
+            });
+
+        });
+
+    }
+
+    return {
+        nodes,
+        links
+    };
+}
+
+//vis
 
 
 const width = 1600;
@@ -226,15 +383,39 @@ const svg = d3.select("#chart")
   .attr("width", width)
   .attr("height", height);
 
+const stageOrder = {
+    capture: 0,
+    dsp: 1,
+    features: 2,
+    inference: 3,
+    output: 4
+};
+
 const sankey = d3.sankey()
-  .nodeAlign(d3.sankeyLeft)
-  .nodeWidth(22)
-  .nodePadding(20)
-  .extent([[40,40],[width-40,height-40]]);
+    .nodeWidth(22)
+    .nodePadding(15)
+    .nodeSort(null)
+    .extent([[50,50],[width-50,height-50]]);
 
 const graph = sankey({
   nodes: nodes.map(d => ({...d})),
   links: links.map(d => ({...d}))
+});
+
+
+graph.nodes.forEach(n => {
+
+    const column =
+        stageOrder[n.stage];
+
+    const step =
+        (width - 100) / 4;
+
+    const x =
+        50 + column * step;
+
+    n.x0 = x;
+    n.x1 = x + 20;
 });
 
 svg.append("g")
@@ -300,7 +481,7 @@ node.on("mouseover", (event, d) => {
       .attr("opacity", 0.55);
 }).on("click",(event,d)=>{
 
-    playOperation(d.operation);
+    playNodeSound({        operations:[d.operation]    });
 
 })
 
@@ -338,6 +519,7 @@ const legendData = [
   ["embedding","#2ecc71"],
   ["upload","#e74c3c"]
 ];
+
 
 const legend = d3.select("#legend");
 
@@ -697,3 +879,23 @@ function playOperation(op){
 
 }
 
+//colours
+function operationColor(op) {
+
+    if (["audiorecord","aaudio","opensl"].includes(op))
+        return "#3498db";
+
+    if (["aec","agc","ns_","denoise"].includes(op))
+        return "#f39c12";
+
+    if (["fft","mel","mfcc","chroma"].includes(op))
+        return "#9b59b6";
+
+    if (["asr","embedding","recognize"].includes(op))
+        return "#27ae60";
+
+    if (["upload","api","recommend"].includes(op))
+        return "#e74c3c";
+
+    return "#999";
+}
