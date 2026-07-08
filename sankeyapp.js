@@ -899,3 +899,63 @@ function operationColor(op) {
 
     return "#999";
 }
+
+
+function renderSankey(data) {
+
+    // Clear previous graph
+    d3.select("#chart").selectAll("*").remove();
+
+    const width = 1600;
+    const height = 900;
+
+    const svg = d3.select("#chart")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    const sankey = d3.sankey()
+        .nodeWidth(20)
+        .nodePadding(15)
+        .extent([[50, 50], [width - 50, height - 50]]);
+
+    const graph = sankey({
+        nodes: data.nodes.map(d => ({ ...d })),
+        links: data.links.map(d => ({ ...d }))
+    });
+
+    svg.append("g")
+        .selectAll("path")
+        .data(graph.links)
+        .join("path")
+        .attr("class", "link")
+        .attr("d", d3.sankeyLinkHorizontal())
+        .attr("fill", "none")
+        .attr("stroke", d => operationColor(d.operation))
+        .attr("stroke-width", d => Math.max(2, d.width));
+
+    const node = svg.append("g")
+        .selectAll("g")
+        .data(graph.nodes)
+        .join("g")
+        .attr("class", "node")
+        .style("cursor", "pointer")
+        .on("click", (event, d) => {
+            playNodeSound(d);
+        });
+
+    node.append("rect")
+        .attr("x", d => d.x0)
+        .attr("y", d => d.y0)
+        .attr("width", d => d.x1 - d.x0)
+        .attr("height", d => d.y1 - d.y0)
+        .attr("fill", d => stageColors[d.stage] || "#999");
+
+    node.append("text")
+        .attr("x", d => d.x0 - 8)
+        .attr("y", d => (d.y0 + d.y1) / 2)
+        .attr("dy", "0.35em")
+        .attr("text-anchor", "end")
+        .text(d => d.name);
+}
+
